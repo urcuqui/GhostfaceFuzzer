@@ -17,9 +17,15 @@ Inspired by stealth tactics and fuzzing strategies in cybersecurity, this tool a
 🦾 Automation Ready: Easily integrate into CI pipelines or red team simulations.
 
 ## 🎯 Use Cases
+
 ✅ Red-teaming AI systems
 
 ✅ Evaluating LLM safety filters
+
+✅ Ethical hacking activities
+
+🔒 Disclaimer
+This tool is intended for research and educational purposes only. Do not use it to attack or exploit systems without proper authorization.
 
 ✅ Stress-testing image classifiers
 
