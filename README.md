@@ -24,7 +24,7 @@ Inspired by stealth tactics and fuzzing strategies in cybersecurity, this tool a
 
 ✅ Ethical hacking activities
 
-##🔒 Disclaimer
+## 🔒 Disclaimer
 
 This tool is intended for research and educational purposes only. Do not use it to attack or exploit systems without proper authorization.
 
