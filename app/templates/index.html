@@ -116,15 +116,53 @@
     </style>
 </head>
 <body>
-    <div class="sidebar">
+    <!-- Menú superior -->
+    <nav style="position: fixed; top: 0; width: 100%; background-color: #111; border-bottom: 2px solid red; z-index: 999;">
+        <ul style="display: flex; list-style: none; margin: 0; padding: 10px; justify-content: center;">
+            <li style="margin: 0 15px;"><button onclick="showSection('home')">Principal</button></li>
+            <li style="margin: 0 15px;"><button onclick="showSection('scan')">Cypher</button></li>
+            <li style="margin: 0 15px;"><button onclick="showSection('about')">About</button></li>
+        </ul>
+    </nav>
+
+    <div class="sidebar" style="margin-top: 50px;">
         <img id="mascotGif" src="../static/skull.gif" alt="Mascot" width="400">
     </div>
-    <div class="content">
-        <h1>HACK ME!! V1</h1>
-        <textarea id="spamText" placeholder="Type your message here..."></textarea>
-        <button onclick="classify()">Classify</button>
-        <div class="result" id="result"></div>
+
+    <div class="content" style="margin-top: 50px;">
+        <!-- Sección Inicio -->
+        <div id="home" class="section">
+            <h1>Welcome to GhostfaceFuzzer</h1>
+            <p>Select an option in the menu to start.</p>
+        </div>
+
+        <!-- Sección Clasificar
+        <div id="scan" class="section" style="display: none;">
+            <h1>HACK ME!! V1</h1>
+            <textarea id="spamText" placeholder="Type your message here..."></textarea>
+            <button onclick="classify()">Classify</button>
+            <div class="result" id="result"></div>
+        </div> -->
+        <div id="scan" class="section" style="display: none;">
+            <h1>Cypher</h1>
+             <form action="/hide_message"  method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; align-items: center;">
+                <input type="file" name="image" accept="image/*">   
+                <textarea id="spamText" name="texthidden" placeholder="Type your message here..."></textarea>             
+            <button  type="submit">Process Image</button>
+            </form>            
+            
+            {% if result is not none %}
+            <h2>✔️ Result of the process: {{ result }}</h2>
+        {% endif %}
+        </div> 
+        <!-- Sección Sobre -->
+        <div id="about" class="section" style="display: none;">
+            <h1>About this project</h1>
+            <p>GhostfaceFuzzer - A stealthy probe into the weaknesses of AI..</p>
+        </div>
+
         <div class="hacking-phrases" id="hackingPhrases"></div>
+
         <div class="signature">
             ___   ___    __   ____  ___    ___    __     __    <br>
            |   | /  |   |  |  |  |  |  |  /  |   |  |   |  |       [0][1][0]  <br>
@@ -134,7 +172,13 @@
            | _| `.__\\  |________|  | _| `.__\\    |____|         
         </div>
     </div>
+
     <script>
+         function showSection(id) {
+            const sections = document.querySelectorAll('.section');
+            sections.forEach(s => s.style.display = 'none');
+            document.getElementById(id).style.display = 'block';
+        }
         async function classify() {
             const message = document.getElementById('spamText').value;
             const response = await fetch('/classify', {

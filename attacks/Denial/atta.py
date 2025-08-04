@@ -2,7 +2,7 @@ import requests
 import threading
 
 TARGET_URL = 'http://127.0.0.1:5000/ping'
-NUM_THREADS = 200  # Puedes ajustar este número
+NUM_THREADS = 100000  # Puedes ajustar este número
 
 def attack():
     while True:
