@@ -1,9 +1,15 @@
 from flask import Flask, render_template, request, jsonify
 import joblib
-import os
-from attacks.cypher import stego
-app = Flask(__name__)
+import sys, os
 
+app = Flask(__name__)
+parent_dir = os.getcwd() 
+
+path = os.path.dirname(parent_dir)
+
+sys.path.append(path)
+sys.path.append(parent_dir)
+from attacks.cypher import stego
 #model_filename = os.path.join(os.path.dirname(__file__), 'full.joblib')
 
 #loaded_model = joblib.load(model_filename)

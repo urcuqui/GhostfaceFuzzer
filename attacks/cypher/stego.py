@@ -68,6 +68,7 @@ def extract_message(imagen_path):
 #TODO: corregir el path donde se obtiene el file
 # Extraer un mensaje, el file debe estar en el mismo folder de este script
 if __name__ == "__main__":
+    print("Extrayendo mensaje oculto...")
     img = os.path.join(os.path.dirname(__file__), 'imagen_con_mensaje.png')
     mensaje = extract_message(img)
     print("Mensaje oculto:", mensaje)
