@@ -1,5 +1,8 @@
-#!/usr/bin/env python3
-# Caesar Cipher Decoder for Ethical Hacking/Penetration Testing
+#Author: Santiago Espinosa Giraldo 
+#Github: https://github.com/espinosacodes
+#Description: Caesar Cipher Decoder for Ethical Hacking/Penetration Testing
+#Usage: python attacks/cypher/ceasar.py "your_ciphertext" -s number_of_shift
+
 
 def caesar_decrypt(ciphertext, shift=None):
     """
