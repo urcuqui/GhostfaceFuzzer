@@ -28,6 +28,18 @@ Inspired by stealth tactics and fuzzing strategies in cybersecurity, this tool a
 
 This tool is intended for research and educational purposes only. Do not use it to attack or exploit systems without proper authorization.
 
+🤝 Contributors
+
+GhostfaceFuzzer is a collaborative project built with the efforts of professionals passionate about AI security and adversarial robustness.
+
+We thank the following contributors for their valuable input, ideas, and code:
+
+@espinosacodes – Developer
+
+@curcuqui – Latest contributor: enhancements on adversarial pipelines 🔥
+
+Want to contribute? Open an issue, submit a pull request, or reach out!
+
 ✅ Stress-testing image classifiers
 
 ✅ Identifying fairness and bias issues
