@@ -68,7 +68,19 @@ def extract_message(imagen_path):
 #TODO: corregir el path donde se obtiene el file
 # Extraer un mensaje, el file debe estar en el mismo folder de este script
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Steganography message extractor for authorized penetration testing",
+        epilog="Use responsibly and only on images you have permission to inspect."
+    )
+    parser.add_argument(
+        "-t", "--target",
+        default=os.path.join(os.path.dirname(__file__), 'imagen_con_mensaje.png'),
+        help="Path to the image to extract the hidden message from (default: imagen_con_mensaje.png next to this script)"
+    )
+    args = parser.parse_args()
+
     print("Extrayendo mensaje oculto...")
-    img = os.path.join(os.path.dirname(__file__), 'imagen_con_mensaje.png')
-    mensaje = extract_message(img)
+    mensaje = extract_message(args.target)
     print("Mensaje oculto:", mensaje)

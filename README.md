@@ -115,10 +115,10 @@ print(stego.extract_message('attacks/cypher/imagen_con_mensaje.png'))
 "
 ```
 
-**Extract from an existing image via CLI** (looks for `imagen_con_mensaje.png` next to the script):
+**Extract from an existing image via CLI** using `-t/--target` to point to the image (defaults to `imagen_con_mensaje.png` next to the script if omitted):
 
 ```bash
-python attacks/cypher/stego.py
+python attacks/cypher/stego.py -t attacks/cypher/imagen_con_mensaje.png
 ```
 
 **Via the demo app** (see step-by-step below): upload an image and a message to `/hide_message` and it returns the stego image.
