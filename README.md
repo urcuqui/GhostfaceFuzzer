@@ -10,6 +10,12 @@ Inspired by stealth tactics and fuzzing strategies in cybersecurity, this tool a
 
 🖼️ Perturbation-based attacks: Pixel-level noise and transformations for computer vision models.
 
+🔐 Classic cryptography attacks: Caesar cipher brute-forcing and decoding.
+
+🕵️ Steganography: Hide and extract messages inside images (LSB technique).
+
+💥 Denial of Service (DoS) simulation: Stress-test a local endpoint with concurrent requests.
+
 🧪 Model-Agnostic Evaluation: Plug-and-play support for PyTorch, HuggingFace, and REST API-based models.
 
 📊 Reporting Engine: Logs anomalies, hallucinations, misclassifications, and failure patterns.
@@ -24,9 +30,149 @@ Inspired by stealth tactics and fuzzing strategies in cybersecurity, this tool a
 
 ✅ Ethical hacking activities
 
+✅ Stress-testing image classifiers
+
+✅ Identifying fairness and bias issues
+
+✅ Building robust AI pipelines
+
 ## 🔒 Disclaimer
 
-This tool is intended for research and educational purposes only. Do not use it to attack or exploit systems without proper authorization.
+This tool is intended for research and educational purposes only. Do not use it to attack or exploit systems without proper authorization. The Denial of Service module in particular must **only** be run against systems you own or are explicitly authorized to test (e.g. the local demo app included in this repo).
+
+## 📁 Project structure
+
+```
+GhostfaceFuzzer/
+├── app/                      # Demo Flask app used as a target for the attacks
+│   ├── app.py                 # Routes: / , /classify , /hide_message , /ping
+│   ├── templates/index.html
+│   ├── static/skull.gif
+│   └── resources/ic.png
+├── attacks/
+│   ├── cypher/
+│   │   ├── ceasar.py           # Caesar cipher brute-force/decoder
+│   │   └── stego.py            # Image steganography (hide/extract messages)
+│   └── Denial/
+│       └── atta.py             # Denial of Service (DoS) stress test against /ping
+├── requirements.txt
+└── README.md
+```
+
+## 🛠️ Requirements & environment setup (venv)
+
+Requires Python 3.9+.
+
+```bash
+# 1. Clone the repo (if you haven't already)
+git clone <repo-url>
+cd GhostfaceFuzzer
+
+# 2. Create a virtual environment
+python3 -m venv venv
+
+# 3. Activate it
+source venv/bin/activate        # macOS/Linux
+# venv\Scripts\activate         # Windows
+
+# 4. Install dependencies
+pip install -r requirements.txt
+```
+
+To leave the virtual environment when you're done: `deactivate`.
+
+## 🚀 Attacks & how to test them
+
+### 1. Caesar cipher (`attacks/cypher/ceasar.py`)
+
+Decodes text encrypted with a classic Caesar cipher, either brute-forcing all 26 shifts or decoding with a known shift.
+
+```bash
+# Brute force all possible shifts
+python attacks/cypher/ceasar.py "PixxgPiksqvo"
+
+# Decode with a known shift
+python attacks/cypher/ceasar.py "PixxgPiksqvo" -s 8
+# -> Decrypted with shift 8: happyhacking
+```
+
+### 2. Steganography (`attacks/cypher/stego.py`)
+
+Hides a text message inside an image using LSB (least significant bit) encoding on the RGB channels, and extracts it back out. It's also exposed through the demo app via the `/hide_message` endpoint.
+
+**Standalone usage:**
+
+```bash
+source venv/bin/activate
+python3 -c "
+from attacks.cypher import stego
+
+# Hide a message inside an image
+stego.hide_message('app/resources/ic.png', 'hack the planet', 'attacks/cypher/imagen_con_mensaje.png')
+
+# Extract the hidden message back out
+print(stego.extract_message('attacks/cypher/imagen_con_mensaje.png'))
+"
+```
+
+**Extract from an existing image via CLI** (looks for `imagen_con_mensaje.png` next to the script):
+
+```bash
+python attacks/cypher/stego.py
+```
+
+**Via the demo app** (see step-by-step below): upload an image and a message to `/hide_message` and it returns the stego image.
+
+### 3. Denial of Service — Denial attack (`attacks/Denial/atta.py`)
+
+Floods a target URL with concurrent GET requests using many threads, to observe how a service degrades under load. By default it targets the demo app's `/ping` endpoint (`http://127.0.0.1:5000/ping`) and spins up **100,000 threads**.
+
+⚠️ **Only run this against the local demo app or another target you are explicitly authorized to test.** 100,000 threads can also overwhelm your own machine — for a safe local test, lower `NUM_THREADS` (e.g. to 50-200) before running it.
+
+```python
+# attacks/Denial/atta.py
+TARGET_URL = 'http://127.0.0.1:5000/ping'
+NUM_THREADS = 100000  # lower this for a local test, e.g. 100
+```
+
+Run it against the demo app (see full step-by-step below):
+
+```bash
+python attacks/Denial/atta.py
+```
+
+Stop it with `Ctrl+C` — it runs until interrupted.
+
+## ✅ Step-by-step: try everything end to end
+
+```bash
+# 1. Set up the environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Test the Caesar cipher decoder
+python attacks/cypher/ceasar.py "PixxgPiksqvo" -s 8
+
+# 3. Test steganography (hide + extract a message)
+python3 -c "
+from attacks.cypher import stego
+stego.hide_message('app/resources/ic.png', 'hack the planet', 'attacks/cypher/imagen_con_mensaje.png')
+print(stego.extract_message('attacks/cypher/imagen_con_mensaje.png'))
+"
+
+# 4. Start the demo Flask app (used as the target for the DoS attack and the stego endpoint)
+cd app
+python app.py
+# App runs on http://127.0.0.1:5000
+
+# 5. In a second terminal, with the venv activated, run the Denial attack against it
+source venv/bin/activate
+# (optional but recommended) reduce NUM_THREADS in attacks/Denial/atta.py first
+python attacks/Denial/atta.py
+# Watch the first terminal: response times/status codes on /ping will degrade under load
+# Press Ctrl+C in the second terminal to stop the attack
+```
 
 ## 🤝 Contributors
 
@@ -39,9 +185,3 @@ We thank the following contributors for their valuable input, ideas, and code:
 @curcuqui – Latest contributor: enhancements on adversarial pipelines 🔥
 
 Want to contribute? Open an issue, submit a pull request, or reach out!
-
-✅ Stress-testing image classifiers
-
-✅ Identifying fairness and bias issues
-
-✅ Building robust AI pipelines
