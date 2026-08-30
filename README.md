@@ -45,8 +45,10 @@ This tool is intended for research and educational purposes only. Do not use it 
 ```
 GhostfaceFuzzer/
 ├── app/                      # Demo Flask app used as a target for the attacks
-│   ├── app.py                 # Routes: / , /classify , /hide_message , /ping
-│   ├── templates/index.html
+│   ├── app.py                 # Routes: / , /classify , /hide_message , /ping , /metrics , /dashboard
+│   ├── templates/
+│   │   ├── index.html          # Main SPA-ish UI
+│   │   └── dashboard.html      # Live DoS monitor (polls /metrics)
 │   ├── static/skull.gif
 │   └── resources/ic.png
 ├── attacks/
@@ -54,7 +56,7 @@ GhostfaceFuzzer/
 │   │   ├── ceasar.py           # Caesar cipher brute-force/decoder
 │   │   └── stego.py            # Image steganography (hide/extract messages)
 │   └── Denial/
-│       └── atta.py             # Denial of Service (DoS) stress test against /ping
+│       └── atta.py             # Denial of Service (DoS) load generator against /ping
 ├── requirements.txt
 └── README.md
 ```
@@ -125,23 +127,29 @@ python attacks/cypher/stego.py -t attacks/cypher/imagen_con_mensaje.png
 
 ### 3. Denial of Service — Denial attack (`attacks/Denial/atta.py`)
 
-Floods a target URL with concurrent GET requests using many threads, to observe how a service degrades under load. By default it targets the demo app's `/ping` endpoint (`http://127.0.0.1:5000/ping`) and spins up **100,000 threads**.
+Floods a target URL with concurrent GET requests using worker threads, to observe how a service degrades under load. By default it targets the demo app's `/ping` endpoint.
 
-⚠️ **Only run this against the local demo app or another target you are explicitly authorized to test.** 100,000 threads can also overwhelm your own machine — for a safe local test, lower `NUM_THREADS` (e.g. to 50-200) before running it.
-
-```python
-# attacks/Denial/atta.py
-TARGET_URL = 'http://127.0.0.1:5000/ping'
-NUM_THREADS = 100000  # lower this for a local test, e.g. 100
-```
-
-Run it against the demo app (see full step-by-step below):
+⚠️ **Only run this against the local demo app or another target you are explicitly authorized to test.**
 
 ```bash
+# Default: 50 threads against http://127.0.0.1:5000/ping
 python attacks/Denial/atta.py
+
+# Custom thread count / target
+python attacks/Denial/atta.py -n 150 -u http://127.0.0.1:5000/ping
 ```
 
-Stop it with `Ctrl+C` — it runs until interrupted.
+Stop it with `Ctrl+C` — it prints a summary of response status counts and runs until interrupted.
+
+### 4. Live DoS monitor (`/dashboard`)
+
+The demo app (`app/app.py`) simulates a backend with **limited capacity** (8 concurrent request slots) and exposes live metrics so you can *see* it degrade in real time instead of just reading terminal logs:
+
+- `/ping` — the target endpoint; requests queue for a free slot (up to 3s) and get a `503` if the backend stays saturated too long.
+- `/metrics` — JSON snapshot: requests/sec, avg & p95 latency, in-flight vs capacity, queue depth, rejected (503) count, error rate, CPU/memory, uptime.
+- `/dashboard` — a live web UI (polls `/metrics` every 500ms) with stat tiles, a real-time RPS/latency chart, and a status banner that flips **OK → DEGRADED → OVERLOADED** as the attack ramps up.
+
+Open `http://127.0.0.1:5000/dashboard` in a browser while `atta.py` is running against the app to watch the degradation live.
 
 ## ✅ Step-by-step: try everything end to end
 
@@ -161,17 +169,21 @@ stego.hide_message('app/resources/ic.png', 'hack the planet', 'attacks/cypher/im
 print(stego.extract_message('attacks/cypher/imagen_con_mensaje.png'))
 "
 
-# 4. Start the demo Flask app (used as the target for the DoS attack and the stego endpoint)
+# 4. Start the demo Flask app (target for the DoS attack, stego endpoint, and the live dashboard)
 cd app
 python app.py
 # App runs on http://127.0.0.1:5000
 
-# 5. In a second terminal, with the venv activated, run the Denial attack against it
+# 5. Open the live monitor in your browser
+#    http://127.0.0.1:5000/dashboard
+
+# 6. In a second terminal, with the venv activated, run the Denial attack against it
 source venv/bin/activate
-# (optional but recommended) reduce NUM_THREADS in attacks/Denial/atta.py first
-python attacks/Denial/atta.py
-# Watch the first terminal: response times/status codes on /ping will degrade under load
-# Press Ctrl+C in the second terminal to stop the attack
+python attacks/Denial/atta.py -n 100
+# Watch /dashboard: RPS and latency climb, the queue backs up, and 503s/rejections
+# appear once the simulated 8-slot capacity stays saturated — status flips to
+# DEGRADED then OVERLOADED.
+# Press Ctrl+C in the second terminal to stop the attack and watch it recover to OK.
 ```
 
 ## 🤝 Contributors

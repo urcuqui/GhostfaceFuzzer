@@ -1,8 +1,38 @@
 from flask import Flask, render_template, request, jsonify
 import joblib
-import sys, os
+import sys, os, time, threading, collections
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 app = Flask(__name__)
+
+# --- Denial of Service demo: simulated backend capacity + live metrics ---
+MAX_CONCURRENT = 8       # how many /ping requests the "server" can handle at once
+QUEUE_TIMEOUT = 3.0      # seconds a request waits for a free slot before being rejected (503)
+METRICS_WINDOW = 10.0    # seconds of history used to compute rps/latency
+
+_capacity = threading.Semaphore(MAX_CONCURRENT)
+_metrics_lock = threading.Lock()
+_metrics = {
+    "requests_total": 0,
+    "rejected_total": 0,
+    "in_flight": 0,
+    "queue_waiting": 0,
+    "start_time": time.time(),
+}
+_recent = collections.deque()  # (timestamp, latency_seconds, ok)
+
+
+def _record(latency, ok):
+    now = time.time()
+    with _metrics_lock:
+        _recent.append((now, latency, ok))
+        _metrics["requests_total"] += 1
+        if not ok:
+            _metrics["rejected_total"] += 1
 parent_dir = os.getcwd() 
 
 path = os.path.dirname(parent_dir)
@@ -51,11 +81,72 @@ def stego_img():
 
 @app.route('/ping')
 def ping():
-    import time
-    time.sleep(0.1)  # Simula trabajo del servidor
-    return 'pong'
+    start = time.time()
+    with _metrics_lock:
+        _metrics["queue_waiting"] += 1
+    acquired = _capacity.acquire(timeout=QUEUE_TIMEOUT)
+    with _metrics_lock:
+        _metrics["queue_waiting"] -= 1
+
+    if not acquired:
+        _record(time.time() - start, ok=False)
+        return 'Service Unavailable - server overloaded', 503
+
+    try:
+        with _metrics_lock:
+            _metrics["in_flight"] += 1
+        time.sleep(0.1)  # Simula trabajo del servidor
+        _record(time.time() - start, ok=True)
+        return 'pong'
+    finally:
+        with _metrics_lock:
+            _metrics["in_flight"] -= 1
+        _capacity.release()
+
+
+@app.route('/metrics')
+def metrics():
+    now = time.time()
+    with _metrics_lock:
+        while _recent and now - _recent[0][0] > METRICS_WINDOW:
+            _recent.popleft()
+        recent = list(_recent)
+        snapshot = dict(_metrics)
+
+    ok_latencies = [lat for (_, lat, ok) in recent if ok]
+    rps = len(recent) / METRICS_WINDOW
+    avg_latency_ms = (sum(ok_latencies) / len(ok_latencies) * 1000) if ok_latencies else 0
+    if ok_latencies:
+        sorted_lat = sorted(ok_latencies)
+        p95_latency_ms = sorted_lat[min(len(sorted_lat) - 1, int(0.95 * len(sorted_lat)))] * 1000
+    else:
+        p95_latency_ms = 0
+    error_rate_pct = (snapshot["rejected_total"] / snapshot["requests_total"] * 100) if snapshot["requests_total"] else 0
+
+    cpu_percent = psutil.cpu_percent(interval=None) if psutil else None
+    mem_mb = round(psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024), 1) if psutil else None
+
+    return jsonify({
+        "requests_total": snapshot["requests_total"],
+        "rejected_total": snapshot["rejected_total"],
+        "in_flight": snapshot["in_flight"],
+        "queue_waiting": snapshot["queue_waiting"],
+        "capacity": MAX_CONCURRENT,
+        "rps": round(rps, 2),
+        "avg_latency_ms": round(avg_latency_ms, 1),
+        "p95_latency_ms": round(p95_latency_ms, 1),
+        "error_rate_pct": round(error_rate_pct, 1),
+        "uptime_s": round(now - snapshot["start_time"], 1),
+        "cpu_percent": cpu_percent,
+        "mem_mb": mem_mb,
+    })
+
+
+@app.route('/dashboard')
+def dashboard():
+    return render_template("dashboard.html")
 
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=False, threaded=True)
     

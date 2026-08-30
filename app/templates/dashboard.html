@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GhostfaceFuzzer // DoS Monitor</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: rgb(255, 0, 0);
+            font-family: 'Courier New', monospace;
+        }
+        header {
+            padding: 1rem 2rem;
+            border-bottom: 2px solid rgb(255, 0, 0);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 {
+            font-size: 1.4rem;
+            margin: 0;
+        }
+        header a {
+            color: rgb(255, 0, 0);
+            text-decoration: none;
+            border: 1px solid rgb(255, 0, 0);
+            padding: 0.4rem 0.8rem;
+        }
+        header a:hover {
+            background-color: rgb(255, 0, 0);
+            color: #000;
+        }
+        #status-banner {
+            margin: 1rem 2rem;
+            padding: 0.75rem 1rem;
+            border: 2px solid currentColor;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        .status-ok { color: #0f0; }
+        .status-degraded { color: #ff0; }
+        .status-overloaded { color: #f00; animation: pulse 0.6s infinite alternate; }
+        @keyframes pulse {
+            from { box-shadow: 0 0 5px #f00; }
+            to { box-shadow: 0 0 25px #f00; }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin: 0 2rem 1.5rem 2rem;
+        }
+        .tile {
+            border: 1px solid rgb(255, 0, 0);
+            background-color: #0a0000;
+            padding: 0.9rem;
+        }
+        .tile .label {
+            font-size: 0.75rem;
+            opacity: 0.75;
+            text-transform: uppercase;
+        }
+        .tile .value {
+            font-size: 1.6rem;
+            margin-top: 0.3rem;
+        }
+
+        #chart-wrap {
+            margin: 0 2rem 2rem 2rem;
+            border: 1px solid rgb(255, 0, 0);
+            padding: 1rem;
+        }
+        #chart-wrap .legend {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .legend-rps { color: #0ff; }
+        .legend-latency { color: #ff0; }
+        canvas {
+            width: 100%;
+            height: 260px;
+            display: block;
+        }
+        .hint {
+            margin: 0 2rem 2rem 2rem;
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>💥 GhostfaceFuzzer // Live Denial-of-Service Monitor</h1>
+        <a href="/">&larr; Back</a>
+    </header>
+
+    <div id="status-banner" class="status-ok">Idle</div>
+
+    <div class="grid">
+        <div class="tile"><div class="label">Requests / sec</div><div class="value" id="m-rps">0</div></div>
+        <div class="tile"><div class="label">Avg latency (ms)</div><div class="value" id="m-avg">0</div></div>
+        <div class="tile"><div class="label">P95 latency (ms)</div><div class="value" id="m-p95">0</div></div>
+        <div class="tile"><div class="label">In-flight / Capacity</div><div class="value" id="m-inflight">0 / 0</div></div>
+        <div class="tile"><div class="label">Queue waiting</div><div class="value" id="m-queue">0</div></div>
+        <div class="tile"><div class="label">Rejected (503)</div><div class="value" id="m-rejected">0</div></div>
+        <div class="tile"><div class="label">Error rate</div><div class="value" id="m-errrate">0%</div></div>
+        <div class="tile"><div class="label">Requests total</div><div class="value" id="m-total">0</div></div>
+        <div class="tile"><div class="label">CPU</div><div class="value" id="m-cpu">n/a</div></div>
+        <div class="tile"><div class="label">Memory (MB)</div><div class="value" id="m-mem">n/a</div></div>
+        <div class="tile"><div class="label">Uptime (s)</div><div class="value" id="m-uptime">0</div></div>
+    </div>
+
+    <div id="chart-wrap">
+        <div class="legend">
+            <span class="legend-rps">&#9632; requests/sec</span>
+            <span class="legend-latency">&#9632; avg latency (ms)</span>
+        </div>
+        <canvas id="chart"></canvas>
+    </div>
+
+    <p class="hint">Polling /metrics every 500ms. Run <code>python attacks/Denial/atta.py</code> in another terminal and watch requests/sec, latency and the rejection rate climb as the simulated 8-slot backend capacity gets saturated.</p>
+
+    <script>
+        const POLL_MS = 500;
+        const MAX_POINTS = 90; // ~45s of history
+
+        const rpsHistory = [];
+        const latencyHistory = [];
+
+        const canvas = document.getElementById('chart');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * devicePixelRatio;
+            canvas.height = rect.height * devicePixelRatio;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function drawChart() {
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // grid
+            ctx.strokeStyle = 'rgba(255,0,0,0.15)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = (h / 4) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            function drawSeries(data, color) {
+                if (data.length < 2) return;
+                const max = Math.max(1, ...data);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2 * devicePixelRatio;
+                ctx.beginPath();
+                data.forEach((v, i) => {
+                    const x = (i / (MAX_POINTS - 1)) * w;
+                    const y = h - (v / max) * h * 0.9 - h * 0.05;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+            }
+
+            drawSeries(rpsHistory, '#0ff');
+            drawSeries(latencyHistory, '#ff0');
+        }
+
+        function pushCapped(arr, value) {
+            arr.push(value);
+            if (arr.length > MAX_POINTS) arr.shift();
+        }
+
+        function setStatus(m) {
+            const banner = document.getElementById('status-banner');
+            let label = 'OK', cls = 'status-ok';
+            if (m.rejected_total > 0 && m.error_rate_pct > 15) {
+                label = 'OVERLOADED'; cls = 'status-overloaded';
+            } else if (m.queue_waiting > 0 || m.in_flight >= m.capacity || m.error_rate_pct > 0) {
+                label = 'DEGRADED'; cls = 'status-degraded';
+            } else if (m.requests_total === 0) {
+                label = 'IDLE'; cls = 'status-ok';
+            }
+            banner.textContent = label;
+            banner.className = cls;
+        }
+
+        async function poll() {
+            try {
+                const res = await fetch('/metrics');
+                const m = await res.json();
+
+                document.getElementById('m-rps').textContent = m.rps;
+                document.getElementById('m-avg').textContent = m.avg_latency_ms;
+                document.getElementById('m-p95').textContent = m.p95_latency_ms;
+                document.getElementById('m-inflight').textContent = `${m.in_flight} / ${m.capacity}`;
+                document.getElementById('m-queue').textContent = m.queue_waiting;
+                document.getElementById('m-rejected').textContent = m.rejected_total;
+                document.getElementById('m-errrate').textContent = `${m.error_rate_pct}%`;
+                document.getElementById('m-total').textContent = m.requests_total;
+                document.getElementById('m-cpu').textContent = m.cpu_percent !== null ? `${m.cpu_percent}%` : 'n/a';
+                document.getElementById('m-mem').textContent = m.mem_mb !== null ? m.mem_mb : 'n/a';
+                document.getElementById('m-uptime').textContent = m.uptime_s;
+
+                pushCapped(rpsHistory, m.rps);
+                pushCapped(latencyHistory, m.avg_latency_ms);
+                drawChart();
+                setStatus(m);
+            } catch (e) {
+                document.getElementById('status-banner').textContent = 'MONITOR DISCONNECTED';
+                document.getElementById('status-banner').className = 'status-overloaded';
+            }
+        }
+
+        setInterval(poll, POLL_MS);
+        poll();
+    </script>
+</body>
+</html>
